@@ -5,8 +5,6 @@ static void KLHide(void);
 
 static NSString * const KLHistoryKey = @"com.kayoko.lite.history";
 static NSInteger const KLMaxHistory = 100;
-static CGFloat const KLSwipeHeight = 80.0;
-static CGFloat const KLMinSwipe = 35.0;
 
 @interface KLClipboardManager : NSObject
 + (instancetype)shared;
