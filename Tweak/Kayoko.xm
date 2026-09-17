@@ -1,55 +1,188 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-static NSMutableArray<NSString *> *KLHistory;
-static UIWindow *KLWindow;
-static BOOL KLTracking;
-static CGPoint KLStart;
+static NSString * const KLHistoryKey = @"com.kayoko.lite.history";
+static NSInteger const KLMaxHistory = 100;
+static CGFloat const KLSwipeHeight = 80.0;
+static CGFloat const KLMinSwipe = 35.0;
 
-static void KLLoad(void) {
-    if (!KLHistory) {
-        NSArray *saved = [[NSUserDefaults standardUserDefaults] objectForKey:@"KLHistory"];
-        KLHistory = saved ? [saved mutableCopy] : [NSMutableArray array];
-    }
+@interface KLClipboardManager : NSObject
++ (instancetype)shared;
+- (void)check;
+- (NSArray<NSString *> *)items;
+- (void)copyItem:(NSString *)item;
+- (void)deleteItemAtIndex:(NSInteger)index;
+- (void)clear;
+@end
+
+@interface KLClipboardManager ()
+@property(nonatomic,strong) NSMutableArray<NSString *> *history;
+@property(nonatomic,copy) NSString *lastChangeToken;
+@end
+
+@implementation KLClipboardManager
+
++ (instancetype)shared {
+    static KLClipboardManager *m;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ m = [KLClipboardManager new]; });
+    return m;
 }
 
-static void KLSave(void) {
-    [[NSUserDefaults standardUserDefaults] setObject:KLHistory forKey:@"KLHistory"];
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        NSArray *saved = [[NSUserDefaults standardUserDefaults] objectForKey:KLHistoryKey];
+        _history = saved ? [saved mutableCopy] : [NSMutableArray array];
+    }
+    return self;
+}
+
+- (NSArray<NSString *> *)items {
+    return [self.history copy];
+}
+
+- (void)save {
+    [[NSUserDefaults standardUserDefaults] setObject:self.history forKey:KLHistoryKey];
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
-static void KLRecord(NSString *text) {
-    if (!text.length) return;
-    KLLoad();
-
-    [KLHistory removeObject:text];
-    [KLHistory insertObject:text atIndex:0];
-
-    if (KLHistory.count > 50)
-        [KLHistory removeObjectsInRange:NSMakeRange(50, KLHistory.count - 50)];
-
-    KLSave();
-}
-
-static void KLCheckClipboard(void) {
-    UIPasteboard *pb = UIPasteboard.generalPasteboard;
+- (void)check {
+    UIPasteboard *pb = [UIPasteboard generalPasteboard];
     NSString *text = pb.string;
-    if (text.length)
-        KLRecord(text);
+    if (!text.length) return;
+
+    NSString *token = [NSString stringWithFormat:@"%lu-%@", (unsigned long)text.length, text];
+    if ([token isEqualToString:self.lastChangeToken]) return;
+    self.lastChangeToken = token;
+
+    [self.history removeObject:text];
+    [self.history insertObject:text atIndex:0];
+
+    if (self.history.count > KLMaxHistory) {
+        [self.history removeObjectsInRange:NSMakeRange(KLMaxHistory, self.history.count - KLMaxHistory)];
+    }
+    [self save];
 }
 
-static void KLClose(void) {
-    [KLWindow removeFromSuperview];
-    KLWindow = nil;
+- (void)copyItem:(NSString *)item {
+    if (!item.length) return;
+    [UIPasteboard generalPasteboard].string = item;
+    self.lastChangeToken = [NSString stringWithFormat:@"%lu-%@", (unsigned long)item.length, item];
 }
 
-@interface KLTableDelegate : NSObject <UITableViewDataSource, UITableViewDelegate>
+- (void)deleteItemAtIndex:(NSInteger)index {
+    if (index < 0 || index >= self.history.count) return;
+    [self.history removeObjectAtIndex:index];
+    [self save];
+}
+
+- (void)clear {
+    [self.history removeAllObjects];
+    [self save];
+}
+
 @end
 
-static KLTableDelegate *KLDelegate;
+@interface KLClipboardController : UIViewController <UITableViewDataSource,UITableViewDelegate>
+@property(nonatomic,strong) UITableView *tableView;
+@end
+
+@implementation KLClipboardController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+
+    self.view.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.98];
+
+    UIView *bar = [[UIView alloc] initWithFrame:CGRectMake(0,0,self.view.bounds.size.width,52)];
+    bar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    bar.backgroundColor = [UIColor colorWithWhite:0.12 alpha:1];
+
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(16,0,180,52)];
+    title.text = @"粘贴板历史";
+    title.textColor = UIColor.whiteColor;
+    title.font = [UIFont boldSystemFontOfSize:18];
+    [bar addSubview:title];
+
+    UIButton *clear = [UIButton buttonWithType:UIButtonTypeSystem];
+    clear.frame = CGRectMake(self.view.bounds.size.width-76,0,68,52);
+    clear.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+    [clear setTitle:@"清空" forState:UIControlStateNormal];
+    [clear setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
+    [clear addTarget:self action:@selector(clearAll) forControlEvents:UIControlEventTouchUpInside];
+    [bar addSubview:clear];
+
+    [self.view addSubview:bar];
+
+    self.tableView = [[UITableView alloc] initWithFrame:CGRectMake(0,52,self.view.bounds.size.width,self.view.bounds.size.height-52) style:UITableViewStylePlain];
+    self.tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
+    self.tableView.backgroundColor = UIColor.clearColor;
+    self.tableView.separatorColor = [UIColor colorWithWhite:1 alpha:0.12];
+    self.tableView.dataSource = self;
+    self.tableView.delegate = self;
+    [self.view addSubview:self.tableView];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return [KLClipboardManager.shared items].count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *ID = @"KLCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:ID];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:ID];
+        cell.backgroundColor = UIColor.clearColor;
+        cell.textLabel.textColor = UIColor.whiteColor;
+        cell.detailTextLabel.textColor = [UIColor colorWithWhite:1 alpha:0.45];
+        cell.textLabel.numberOfLines = 2;
+    }
+
+    NSString *text = [KLClipboardManager.shared items][indexPath.row];
+    cell.textLabel.text = text;
+    cell.detailTextLabel.text = @"点击复制";
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSArray *items = [KLClipboardManager.shared items];
+    if (indexPath.row < items.count) {
+        [KLClipboardManager.shared copyItem:items[indexPath.row]];
+        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    }
+}
+
+- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
+    return YES;
+}
+
+- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)style forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (style == UITableViewCellEditingStyleDelete) {
+        [KLClipboardManager.shared deleteItemAtIndex:indexPath.row];
+        [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+    }
+}
+
+- (void)clearAll {
+    [KLClipboardManager.shared clear];
+    [self.tableView reloadData];
+}
+
+@end
+
+static UIWindow *KLWindow;
+static UIViewController *KLRootController;
+
+static void KLHide(void) {
+    [KLWindow resignKeyWindow];
+    KLWindow.hidden = YES;
+    KLWindow = nil;
+    KLRootController = nil;
+}
 
 static void KLShow(void) {
-    KLLoad();
+    [KLClipboardManager.shared check];
 
     UIWindowScene *scene = nil;
     for (UIScene *s in UIApplication.sharedApplication.connectedScenes) {
@@ -61,106 +194,64 @@ static void KLShow(void) {
     }
     if (!scene) return;
 
-    CGRect screen = scene.screen.bounds;
+    if (KLWindow) KLHide();
+
+    KLRootController = [KLClipboardController new];
 
     KLWindow = [[UIWindow alloc] initWithWindowScene:scene];
-    KLWindow.frame = CGRectMake(12, screen.size.height - 330, screen.size.width - 24, 300);
-    KLWindow.windowLevel = UIWindowLevelAlert + 1;
-    KLWindow.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.97];
-    KLWindow.layer.cornerRadius = 16;
-    KLWindow.clipsToBounds = YES;
-
-    UITableView *table = [[UITableView alloc] initWithFrame:KLWindow.bounds style:UITableViewStylePlain];
-    table.backgroundColor = UIColor.clearColor;
-    table.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
-
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(16, 0, table.bounds.size.width - 32, 44)];
-    title.text = @"粘贴板历史";
-    title.textColor = UIColor.whiteColor;
-    title.font = [UIFont boldSystemFontOfSize:17];
-    [table addSubview:title];
-
-    table.contentInset = UIEdgeInsetsMake(44, 0, 0, 0);
-    table.tag = 58131;
-
-    [table registerClass:UITableViewCell.class forCellReuseIdentifier:@"cell"];
-
-    __weak UITableView *weakTable = table;
-
-    table.dataSource = KLDelegate;
-    table.delegate = KLDelegate;
-
-    [KLWindow addSubview:table];
+    KLWindow.frame = scene.screen.bounds;
+    KLWindow.windowLevel = UIWindowLevelAlert + 100;
+    KLWindow.rootViewController = KLRootController;
+    KLWindow.backgroundColor = UIColor.clearColor;
+    KLWindow.hidden = NO;
     [KLWindow makeKeyAndVisible];
-
-    [table reloadData];
 }
 
-@implementation KLTableDelegate
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return KLHistory.count;
-}
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *c = [tableView dequeueReusableCellWithIdentifier:@"cell" forIndexPath:indexPath];
-    c.backgroundColor = UIColor.clearColor;
-    c.textLabel.textColor = UIColor.whiteColor;
-    c.textLabel.numberOfLines = 2;
-    c.textLabel.text = KLHistory[indexPath.row];
-    return c;
-}
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (indexPath.row < KLHistory.count)
-        UIPasteboard.generalPasteboard.string = KLHistory[indexPath.row];
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-}
-@end
-
-static void KLInstallTimer(void) {
-    KLLoad();
-    [NSTimer scheduledTimerWithTimeInterval:0.8
-                                     target:[NSBlockOperation blockOperationWithBlock:^{
-        KLCheckClipboard();
-    }]
-                                   selector:@selector(main)
-                                   userInfo:nil
-                                    repeats:YES];
-}
-
-%hook UIKeyboardImpl
-
-- (void)insertText:(id)text {
-    KLCheckClipboard();
-    %orig;
-}
-
-%end
-
-%hook UIView
-
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-    UITouch *t = touches.anyObject;
-    CGPoint p = [t locationInView:self];
-
-    if (self.window && self.window.rootViewController &&
-        self.bounds.size.height > 300 && p.y > self.bounds.size.height - 70) {
-        KLTracking = YES;
-        KLStart = p;
-    }
-
-    %orig;
-}
-
-- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
-    if (KLTracking) {
-        UITouch *t = touches.anyObject;
-        CGPoint p = [t locationInView:self];
-
-        if (KLStart.y - p.y > 35) {
-            if (!KLDelegate)
-                KLDelegate = [KLTableDelegate new];
-            KLShow();
+static BOOL KLIsKeyboardView(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        NSString *name = NSStringFromClass(v.class);
+        if ([name containsString:@"UIInputSet"] ||
+            [name containsString:@"UIKeyboard"]) {
+            return YES;
         }
-        KLTracking = NO;
+    }
+    return NO;
+}
+
+static BOOL KLTouchInBottomKeyboardArea(UITouch *touch) {
+    UIWindow *window = touch.window;
+    if (!window || !KLIsKeyboardView(touch.view)) return NO;
+
+    CGPoint p = [touch locationInView:window];
+    return p.y >= window.bounds.size.height - KLSwipeHeight;
+}
+
+%hook UIApplication
+
+- (void)sendEvent:(UIEvent *)event {
+    if (event.type == UIEventTypeTouches) {
+        NSSet *touches = [event touchesForWindow:nil];
+        for (UITouch *touch in touches) {
+            if (touch.phase == UITouchPhaseBegan) {
+                if (KLTouchInBottomKeyboardArea(touch)) {
+                    objc_setAssociatedObject(touch, "KLStart",
+                                             [NSValue valueWithCGPoint:[touch locationInView:touch.window]],
+                                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+            } else if (touch.phase == UITouchPhaseEnded) {
+                NSValue *value = objc_getAssociatedObject(touch, "KLStart");
+                if (value && KLTouchInBottomKeyboardArea(touch)) {
+                    CGPoint start = value.CGPointValue;
+                    CGPoint end = [touch locationInView:touch.window];
+
+                    if (start.y - end.y >= KLMinSwipe &&
+                        fabs(start.x - end.x) < 100.0) {
+                        KLShow();
+                    }
+                }
+                objc_setAssociatedObject(touch, "KLStart", nil, OBJC_ASSOCIATION_ASSIGN);
+            }
+        }
     }
 
     %orig;
@@ -169,10 +260,13 @@ static void KLInstallTimer(void) {
 %end
 
 %ctor {
-    KLLoad();
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [KLClipboardManager.shared check];
 
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        KLInstallTimer();
+        [NSTimer scheduledTimerWithTimeInterval:0.5
+                                        repeats:YES
+                                          block:^(NSTimer *timer) {
+            [KLClipboardManager.shared check];
+        }];
     });
 }
