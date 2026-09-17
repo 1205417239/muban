@@ -187,6 +187,8 @@ static UIWindow *KLWindow;
 static UIViewController *KLRootController;
 static NSMutableSet *KLKeyboardWindows;
 
+static void KLHide(void);
+
 static void KLHide(void) {
     [KLWindow resignKeyWindow];
     KLWindow.hidden = YES;
@@ -307,7 +309,6 @@ static void KLInstallKeyboardGestures(void) {
                                             action:@selector(handleSwipe:)];
         swipe.direction = UISwipeGestureRecognizerDirectionUp;
         swipe.numberOfTouchesRequired = 1;
-        swipe.numberOfTouchesAllowed = 1;
         swipe.cancelsTouchesInView = NO;
         swipe.delaysTouchesBegan = NO;
         swipe.delaysTouchesEnded = NO;
