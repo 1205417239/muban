@@ -271,7 +271,7 @@ static BOOL KLWindowLooksLikeKeyboard(UIWindow *window) {
     }
 
     __block BOOL found = NO;
-    void (^scan)(UIView *) = ^(UIView *view) {
+    __block void (^scan)(UIView *) = ^(UIView *view) {
         NSString *n = NSStringFromClass(view.class);
         if ([n containsString:@"UIInputSetContainerView"] ||
             [n containsString:@"UIInputSetHostView"] ||
