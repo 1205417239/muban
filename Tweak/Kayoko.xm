@@ -270,23 +270,24 @@ static BOOL KLWindowLooksLikeKeyboard(UIWindow *window) {
         return YES;
     }
 
-    __block BOOL found = NO;
-    __block void (^scan)(UIView *) = ^(UIView *view) {
+    NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:window];
+    while (stack.count > 0) {
+        UIView *view = stack.lastObject;
+        [stack removeLastObject];
+
         NSString *n = NSStringFromClass(view.class);
         if ([n containsString:@"UIInputSetContainerView"] ||
             [n containsString:@"UIInputSetHostView"] ||
             [n containsString:@"UIKeyboard"] ||
             [n containsString:@"UIKeyboardImpl"]) {
-            found = YES;
-            return;
+            return YES;
         }
+
         for (UIView *sub in view.subviews) {
-            if (found) break;
-            scan(sub);
+            [stack addObject:sub];
         }
-    };
-    scan(window);
-    return found;
+    }
+    return NO;
 }
 
 static void KLInstallKeyboardGestures(void) {
