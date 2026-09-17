@@ -230,7 +230,7 @@ static BOOL KLTouchInBottomKeyboardArea(UITouch *touch) {
 
 - (void)sendEvent:(UIEvent *)event {
     if (event.type == UIEventTypeTouches) {
-        NSSet *touches = [event touchesForWindow:nil];
+        NSSet *touches = event.allTouches;
         for (UITouch *touch in touches) {
             if (touch.phase == UITouchPhaseBegan) {
                 if (KLTouchInBottomKeyboardArea(touch)) {
