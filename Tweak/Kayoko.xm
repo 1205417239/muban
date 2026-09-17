@@ -1,6 +1,8 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
+static void KLHide(void);
+
 static NSString * const KLHistoryKey = @"com.kayoko.lite.history";
 static NSInteger const KLMaxHistory = 100;
 static CGFloat const KLSwipeHeight = 80.0;
@@ -186,8 +188,6 @@ static CGFloat const KLMinSwipe = 35.0;
 static UIWindow *KLWindow;
 static UIViewController *KLRootController;
 static NSMutableSet *KLKeyboardWindows;
-
-static void KLHide(void);
 
 static void KLHide(void) {
     [KLWindow resignKeyWindow];
