@@ -1,7 +1,7 @@
 Package: com.dynamicx.standardadjust
 Name: DynamicX Standard Adjust
-Version: 1.0.3
-Architecture: iphoneos-arm64
+Version: 1.0.14
+Architecture: iphoneos-arm64e
 Description: Companion tweak for DynamicX standard expanded notifications.
 Maintainer: DynamicX
 Author: DynamicX

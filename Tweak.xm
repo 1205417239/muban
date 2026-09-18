@@ -2,6 +2,8 @@
 #import <objc/message.h>
 #import <objc/NSObjCRuntime.h>
 #import <dispatch/dispatch.h>
+#import <CoreFoundation/CoreFoundation.h>
+#include <stdlib.h>
 
 #ifndef YES
 #define YES 1
@@ -22,14 +24,29 @@ static id DXSAString(const char *value) {
 }
 
 static double DXSAGetNumber(const char *key, double fallback) {
-    Class cf = objc_getClass("NSUserDefaults");
-    id d = DXSAObjcMsg((id)cf, sel_registerName("standardUserDefaults"));
-    id k = DXSAString(key);
-    id n = DXSAObjcMsg1(d, sel_registerName("objectForKey:"), k);
-    if (n) return ((double (*)(id, SEL))objc_msgSend)(n, sel_registerName("doubleValue"));
-    Class ns = objc_getClass("NSNumber");
-    (void)ns;
-    return fallback;
+    CFStringRef domain = CFSTR("com.dynamicx.standardadjust");
+    CFStringRef cfKey = CFStringCreateWithCString(kCFAllocatorDefault, key, kCFStringEncodingUTF8);
+    if (!cfKey) return fallback;
+
+    CFPreferencesAppSynchronize(domain);
+    CFPropertyListRef value = CFPreferencesCopyAppValue(cfKey, domain);
+    CFRelease(cfKey);
+
+    if (!value) return fallback;
+
+    double result = fallback;
+    CFTypeID type = CFGetTypeID(value);
+    if (type == CFNumberGetTypeID()) {
+        double v = fallback;
+        if (CFNumberGetValue((CFNumberRef)value, kCFNumberDoubleType, &v)) result = v;
+    } else if (type == CFStringGetTypeID()) {
+        char buffer[64] = {0};
+        if (CFStringGetCString((CFStringRef)value, buffer, sizeof(buffer), kCFStringEncodingUTF8))
+            result = strtod(buffer, NULL);
+    }
+
+    CFRelease(value);
+    return result;
 }
 
 static void DXSAApply(id view) {
