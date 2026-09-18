@@ -1,9 +1,0 @@
-Package: com.kayoko.lite
-Name: Kayoko Lite
-Version: 1.0.0
-Architecture: iphoneos-arm64
-Description: 极简粘贴板历史管理器
-Maintainer: Kayoko
-Author: Kayoko
-Section: Tweaks
-Depends: firmware (>= 15.0)
