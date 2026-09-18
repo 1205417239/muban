@@ -1,0 +1,39 @@
+{
+    Title = "DynamicX 标准通知增强";
+    Description = "仅调整 DynamicX 标准展开通知";
+    PreferenceSpecifiers = (
+        {
+            Type = PSGroupSpecifier;
+            Label = "标准通知整体大小";
+        },
+        {
+            Type = PSMultiValueSpecifier;
+            Title = "整体大小";
+            Key = "OverallScalePercent";
+            DefaultValue = 100;
+            Values = (60,70,80,90,100,110,120,130,140,150,160);
+            Titles = ("60%","70%","80%","90%","100%","110%","120%","130%","140%","150%","160%");
+            PostNotification = "com.dynamicx.standardadjust/preferenceschanged";
+        },
+        {
+            Type = PSGroupSpecifier;
+            Label = "外观";
+        },
+        {
+            Type = PSToggleSwitchSpecifier;
+            Title = "白色通知";
+            Key = "WhiteStyleEnabled";
+            DefaultValue = NO;
+            PostNotification = "com.dynamicx.standardadjust/preferenceschanged";
+        },
+        {
+            Type = PSMultiValueSpecifier;
+            Title = "透明度";
+            Key = "OpacityPercent";
+            DefaultValue = 100;
+            Values = (10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100);
+            Titles = ("10%","15%","20%","25%","30%","35%","40%","45%","50%","55%","60%","65%","70%","75%","80%","85%","90%","95%","100%");
+            PostNotification = "com.dynamicx.standardadjust/preferenceschanged";
+        }
+    );
+}
