@@ -6,7 +6,6 @@
 
 typedef double CGFloat;
 typedef unsigned long NSUInteger;
-typedef int BOOL;
 typedef struct { CGFloat a,b,c,d,tx,ty; } CGAffineTransform;
 static inline CGAffineTransform DXSAMakeScale(CGFloat s) { return (CGAffineTransform){s,0,0,s,0,0}; }
 
