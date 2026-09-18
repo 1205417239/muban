@@ -7,7 +7,6 @@ TWEAK_NAME = DynamicXStandardAdjust
 
 DynamicXStandardAdjust_FILES = Tweak.xm
 DynamicXStandardAdjust_FRAMEWORKS = UIKit Foundation
-DynamicXStandardAdjust_CFLAGS = -fobjc-arc -stdlib=libc++ -Wno-module-import-in-extern-c
-DynamicXStandardAdjust_LDFLAGS = -stdlib=libc++
+DynamicXStandardAdjust_CFLAGS = -fobjc-arc -Wno-objc-interface-ivars
 
 include $(THEOS_MAKE_PATH)/tweak.mk
