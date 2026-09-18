@@ -1,0 +1,99 @@
+name: Build DynamicXStandardAdjust
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install ldid
+
+      - name: Install Theos
+        run: |
+          git clone --recursive \
+            https://github.com/theos/theos.git \
+            "$GITHUB_WORKSPACE/theos"
+
+      - name: Install SDK
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/theos/sdks"
+          git clone --depth 1 \
+            https://github.com/theos/sdks.git \
+            /tmp/sdks
+
+          find /tmp/sdks \
+            -maxdepth 2 \
+            -type d \
+            -name "*.sdk" \
+            -exec cp -R {} \
+            "$GITHUB_WORKSPACE/theos/sdks/" \;
+
+      - name: Show build environment
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          echo "THEOS=$THEOS"
+          echo "Architecture:"
+          uname -m
+          echo "Available SDKs:"
+          ls -la "$THEOS/sdks"
+
+      - name: Build package
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: |
+          export PATH="$THEOS/bin:$PATH"
+
+          echo "Cleaning..."
+          make clean
+
+          echo "Building DynamicXStandardAdjust..."
+          make package \
+            FINALPACKAGE=1 \
+            THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Find package
+        run: |
+          echo "Searching for generated packages..."
+
+          find . \
+            -type f \
+            \( -name "*.deb" -o -name "*.dylib" \) \
+            -print
+
+          if ! find . -type f -name "*.deb" | grep -q .; then
+            echo "ERROR: No .deb package generated."
+            exit 1
+          fi
+
+      - name: Show package information
+        run: |
+          echo "Generated packages:"
+          find . -type f -name "*.deb" -print
+
+          for pkg in $(find . -type f -name "*.deb"); do
+            echo "================================"
+            echo "Package: $pkg"
+            echo "================================"
+            dpkg-deb -I "$pkg" || true
+            echo
+            dpkg-deb -c "$pkg" || true
+          done
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: DynamicXStandardAdjust-deb
+          path: "**/*.deb"
+          if-no-files-found: error
+          retention-days: 7
