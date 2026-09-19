@@ -1,72 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>entry</key>
-    <dict>
-        <key>cell</key>
-        <string>PSLinkCell</string>
-        <key>label</key>
-        <string>DynamicX 标准通知增强</string>
-    </dict>
-    <key>title</key>
-    <string>DynamicX 标准通知增强</string>
-    <key>items</key>
-    <array>
-        <dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
-            <key>label</key>
-            <string>标准通知</string>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSSwitchCell</string>
-            <key>defaults</key>
-            <string>com.dynamicx.standardadjust</string>
-            <key>key</key>
-            <string>WhiteStyleEnabled</string>
-            <key>label</key>
-            <string>白色通知</string>
-            <key>default</key>
-            <false/>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSLinkListCell</string>
-            <key>detail</key>
-            <string>PSListItemsController</string>
-            <key>label</key>
-            <string>通知大小</string>
-            <key>key</key>
-            <string>OverallScalePercent</string>
-            <key>defaults</key>
-            <string>com.dynamicx.standardadjust</string>
-            <key>default</key>
-            <integer>100</integer>
-            <key>validTitles</key>
-            <array><string>60%</string><string>70%</string><string>80%</string><string>90%</string><string>100%</string><string>110%</string><string>120%</string><string>130%</string><string>140%</string><string>150%</string><string>160%</string></array>
-            <key>validValues</key>
-            <array><integer>60</integer><integer>70</integer><integer>80</integer><integer>90</integer><integer>100</integer><integer>110</integer><integer>120</integer><integer>130</integer><integer>140</integer><integer>150</integer><integer>160</integer></array>
-        </dict>
-        <dict>
-            <key>cell</key>
-            <string>PSLinkListCell</string>
-            <key>detail</key>
-            <string>PSListItemsController</string>
-            <key>label</key>
-            <string>通知透明度</string>
-            <key>key</key>
-            <string>OpacityPercent</string>
-            <key>defaults</key>
-            <string>com.dynamicx.standardadjust</string>
-            <key>default</key>
-            <integer>100</integer>
-            <key>validTitles</key>
-            <array><string>10%</string><string>20%</string><string>30%</string><string>40%</string><string>50%</string><string>60%</string><string>70%</string><string>80%</string><string>90%</string><string>100%</string></array>
-            <key>validValues</key>
-            <array><integer>10</integer><integer>20</integer><integer>30</integer><integer>40</integer><integer>50</integer><integer>60</integer><integer>70</integer><integer>80</integer><integer>90</integer><integer>100</integer></array>
-        </dict>
-    </array>
+<plist version="1.0"><dict>
+<key>entry</key><dict>
+<key>cell</key><string>PSLinkCell</string>
+<key>label</key><string>DynamicX 白色通知</string>
 </dict>
-</plist>
+<key>title</key><string>DynamicX 白色通知</string>
+<key>items</key><array>
+<dict>
+<key>cell</key><string>PSSwitchCell</string>
+<key>defaults</key><string>com.dynamicx.standardadjust</string>
+<key>key</key><string>WhiteStyleEnabled</string>
+<key>label</key><string>白色通知</string>
+<key>default</key><false/>
+<key>PostNotification</key><string>com.dynamicx.standardadjust/preferences.changed</string>
+</dict>
+</array>
+</dict></plist>
