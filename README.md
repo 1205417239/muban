@@ -1,4 +1,1 @@
-1.0.30
-- Keeps the working 1.0.29 PreferenceLoader structure unchanged.
-- Adds both color and DynamicXNotificationElement size hooks in the same build.
-- Makefile unchanged from 1.0.29.
+1.0.31 fixes CGFloat compilation by defining CGFloat as double for arm64e runtime-only compilation. PreferenceLoader is unchanged from 1.0.29. Makefile unchanged.
