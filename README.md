@@ -1,1 +1,3 @@
-1.0.26 fixes the three compile errors from 1.0.25. White-style test only.
+1.0.28 restores the previous PreferenceLoader settings entry and its three controls.
+Makefile is unchanged from 1.0.27.
+Runtime test remains focused on the white-style hook.

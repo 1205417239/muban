@@ -2,17 +2,41 @@
     PreferenceSpecifiers = (
         {
             Type = PSGroupCell;
-            Label = "DynamicX Standard Adjust 1.0.26";
+            Label = "DynamicX Standard Adjust";
+        },
+        {
+            Type = PSSliderCell;
+            Title = "标准通知整体大小";
+            Key = OverallScalePercent;
+            DefaultValue = 100;
+            MinimumValue = 60;
+            MaximumValue = 160;
+            MinimumValueImage = "";
+            MaximumValueImage = "";
         },
         {
             Type = PSSwitchCell;
             Title = "白色通知";
             Key = WhiteStyleEnabled;
             DefaultValue = NO;
+        },
+        {
+            Type = PSGroupCell;
+            Label = "透明度";
+        },
+        {
+            Type = PSSliderCell;
+            Title = "标准通知透明度";
+            Key = OpacityPercent;
+            DefaultValue = 100;
+            MinimumValue = 10;
+            MaximumValue = 100;
         }
     );
     Defaults = {
+        OverallScalePercent = 100;
         WhiteStyleEnabled = NO;
+        OpacityPercent = 100;
     };
     PostNotification = "com.dynamicx.standardadjust/preferences.changed";
 }

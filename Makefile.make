@@ -4,7 +4,8 @@ ARCHS = arm64e
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = DynamicXStandardAdjust
+
 DynamicXStandardAdjust_FILES = Tweak.xm
-DynamicXStandardAdjust_CFLAGS = -fobjc-arc
+DynamicXStandardAdjust_CFLAGS = -fobjc-arc -Wno-objc-method-access
 
 include $(THEOS_MAKE_PATH)/tweak.mk
