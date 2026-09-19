@@ -5,7 +5,6 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = DynamicXStandardAdjust
 DynamicXStandardAdjust_FILES = Tweak.xm
-DynamicXStandardAdjust_FRAMEWORKS = UIKit Foundation
-DynamicXStandardAdjust_CFLAGS = -fobjc-arc -Wno-objc-interface-ivars
+DynamicXStandardAdjust_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk

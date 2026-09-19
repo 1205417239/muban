@@ -1,8 +1,18 @@
 {
     PreferenceSpecifiers = (
-        { Type = PSGroupCell; Label = "DynamicX Standard Adjust 1.0.24"; },
-        { Type = PSSwitchCell; Title = "白色通知"; Key = WhiteStyleEnabled; DefaultValue = NO; }
+        {
+            Type = PSGroupCell;
+            Label = "DynamicX Standard Adjust 1.0.25";
+        },
+        {
+            Type = PSSwitchCell;
+            Title = "白色通知";
+            Key = WhiteStyleEnabled;
+            DefaultValue = NO;
+        }
     );
-    Defaults = { WhiteStyleEnabled = NO; };
+    Defaults = {
+        WhiteStyleEnabled = NO;
+    };
     PostNotification = "com.dynamicx.standardadjust/preferences.changed";
 }
