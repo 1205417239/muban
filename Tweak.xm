@@ -1,17 +1,19 @@
 #import <objc/runtime.h>
 #import <objc/message.h>
 #import <objc/objc.h>
+#import <objc/NSObjCRuntime.h>
+
+static BOOL DXSAIsKindOfClass(id obj, Class cls) {
+    if (!obj || !cls) return NO;
+    return ((BOOL (*)(id, SEL, Class))objc_msgSend)(
+        obj, sel_registerName("isKindOfClass:"), cls);
+}
 
 static BOOL DXSAWhiteEnabled(void) {
     Class UD = objc_getClass("NSUserDefaults");
     if (!UD) return NO;
 
-    id prefs = ((id (*)(id, SEL, id))objc_msgSend)(
-        (id)UD, sel_registerName("alloc"), 0);
-    if (!prefs) return NO;
-
-    prefs = ((id (*)(id, SEL, id))objc_msgSend)(
-        prefs, sel_registerName("initWithSuiteName:"), @"com.dynamicx.standardadjust");
+    id prefs = ((id (*)(id, SEL))objc_msgSend)(UD, sel_registerName("standardUserDefaults"));
     if (!prefs) return NO;
 
     return ((BOOL (*)(id, SEL, id))objc_msgSend)(
@@ -30,10 +32,16 @@ static id DXSABlackColor(void) {
     return ((id (*)(id, SEL))objc_msgSend)(C, sel_registerName("blackColor"));
 }
 
-static void DXSASetColor(id view, id color) {
-    if (!view || !color) return;
-    ((void (*)(id, SEL, id))objc_msgSend)(
-        view, sel_registerName("setBackgroundColor:"), color);
+static void DXSASetBackground(id view, id color) {
+    if (view && color)
+        ((void (*)(id, SEL, id))objc_msgSend)(
+            view, sel_registerName("setBackgroundColor:"), color);
+}
+
+static void DXSASetTextColor(id view, id color) {
+    if (view && color)
+        ((void (*)(id, SEL, id))objc_msgSend)(
+            view, sel_registerName("setTextColor:"), color);
 }
 
 %group DXSA_GainMap
@@ -49,15 +57,13 @@ static void DXSASetColor(id view, id color) {
         self, sel_registerName("superview"));
 
     Class gain = objc_getClass("_SBSystemApertureGainMapView");
-    if (!superview || !gain ||
-        ![superview isKindOfClass:gain]) return;
+    if (!DXSAIsKindOfClass(superview, gain)) return;
 
     id white = DXSAWhiteColor();
-    DXSASetColor(self, white);
+    DXSASetBackground(self, white);
 
     id subviews = ((id (*)(id, SEL))objc_msgSend)(
         self, sel_registerName("subviews"));
-
     NSUInteger count = ((NSUInteger (*)(id, SEL))objc_msgSend)(
         subviews, sel_registerName("count"));
 
@@ -68,10 +74,8 @@ static void DXSASetColor(id view, id color) {
         id v = ((id (*)(id, SEL, NSUInteger))objc_msgSend)(
             subviews, sel_registerName("objectAtIndex:"), i);
 
-        if (label && v && [v isKindOfClass:label] && black) {
-            ((void (*)(id, SEL, id))objc_msgSend)(
-                v, sel_registerName("setTextColor:"), black);
-        }
+        if (DXSAIsKindOfClass(v, label))
+            DXSASetTextColor(v, black);
     }
 }
 

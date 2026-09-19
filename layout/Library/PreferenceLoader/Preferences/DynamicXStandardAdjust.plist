@@ -2,7 +2,7 @@
     PreferenceSpecifiers = (
         {
             Type = PSGroupCell;
-            Label = "DynamicX Standard Adjust 1.0.25";
+            Label = "DynamicX Standard Adjust 1.0.26";
         },
         {
             Type = PSSwitchCell;
