@@ -4,7 +4,6 @@ ARCHS = arm64e
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = DynamicXStandardAdjust
-
 DynamicXStandardAdjust_FILES = Tweak.xm
 DynamicXStandardAdjust_FRAMEWORKS = UIKit Foundation
 DynamicXStandardAdjust_CFLAGS = -fobjc-arc -Wno-objc-interface-ivars

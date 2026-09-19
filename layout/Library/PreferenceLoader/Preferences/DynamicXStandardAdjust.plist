@@ -1,19 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>entry</key><dict>
-<key>cell</key><string>PSLinkCell</string>
-<key>label</key><string>DynamicX 白色通知</string>
-</dict>
-<key>title</key><string>DynamicX 白色通知</string>
-<key>items</key><array>
-<dict>
-<key>cell</key><string>PSSwitchCell</string>
-<key>defaults</key><string>com.dynamicx.standardadjust</string>
-<key>key</key><string>WhiteStyleEnabled</string>
-<key>label</key><string>白色通知</string>
-<key>default</key><false/>
-<key>PostNotification</key><string>com.dynamicx.standardadjust/preferences.changed</string>
-</dict>
-</array>
-</dict></plist>
+{
+    PreferenceSpecifiers = (
+        { Type = PSGroupCell; Label = "DynamicX Standard Adjust 1.0.24"; },
+        { Type = PSSwitchCell; Title = "白色通知"; Key = WhiteStyleEnabled; DefaultValue = NO; }
+    );
+    Defaults = { WhiteStyleEnabled = NO; };
+    PostNotification = "com.dynamicx.standardadjust/preferences.changed";
+}

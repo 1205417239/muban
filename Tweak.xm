@@ -1,77 +1,38 @@
 #import <UIKit/UIKit.h>
 
-@interface _SBGainMapView : UIView
-@end
-
-@interface _SBSystemApertureGainMapView : UIView
-@end
-
-@interface SBSystemApertureContainerView : UIView
-@end
-
 static BOOL DXSAWhiteEnabled(void) {
-    NSUserDefaults *prefs =
-        [[NSUserDefaults alloc] initWithSuiteName:@"com.dynamicx.standardadjust"];
-
-    if (!prefs) return YES;
-
-    if ([prefs objectForKey:@"WhiteStyleEnabled"] == nil)
-        return YES;
-
-    return [prefs boolForKey:@"WhiteStyleEnabled"];
+    NSUserDefaults *p = [[NSUserDefaults alloc] initWithSuiteName:@"com.dynamicx.standardadjust"];
+    return p ? [p boolForKey:@"WhiteStyleEnabled"] : NO;
 }
 
-static void DXSAApplyWhiteToView(UIView *view) {
-    if (!view || !DXSAWhiteEnabled()) return;
-
-    view.backgroundColor = UIColor.whiteColor;
-
-    for (UIView *subview in view.subviews) {
-        DXSAApplyWhiteToView(subview);
-    }
-}
-
-/*
- * This patch follows the public DynamicNotLand approach:
- * the real System Aperture gain-map view is captured from
- * _SBSystemApertureGainMapView -> _SBGainMapView.
- *
- * We intentionally patch the real SpringBoard Aperture view instead
- * of DynamicXNotificationElement.
- */
+%group DXSA_GainMap
 %hook _SBGainMapView
-
 - (void)layoutSubviews {
     %orig;
-
-    if ([self.superview isMemberOfClass:%c(_SBSystemApertureGainMapView)]) {
-        if (DXSAWhiteEnabled()) {
-            self.backgroundColor = UIColor.whiteColor;
-        }
+    if (!DXSAWhiteEnabled()) return;
+    UIView *sv = self.superview;
+    if (sv && [sv isKindOfClass:%c(_SBSystemApertureGainMapView)]) {
+        self.backgroundColor = [UIColor whiteColor];
+        for (UIView *v in self.subviews)
+            if ([v isKindOfClass:[UILabel class]])
+                ((UILabel *)v).textColor = [UIColor blackColor];
     }
 }
-
+%end
 %end
 
-/*
- * Also patch the real Aperture container after DynamicX has laid it out.
- * This is deliberately limited to the white-background option.
- */
+%group DXSA_ApertureContainer
 %hook SBSystemApertureContainerView
-
 - (void)setBackgroundColor:(UIColor *)color {
-    if (DXSAWhiteEnabled()) {
-        %orig(UIColor.whiteColor);
-    } else {
-        %orig(color);
-    }
+    if (DXSAWhiteEnabled()) %orig([UIColor whiteColor]);
+    else %orig(color);
 }
-
+%end
 %end
 
 %ctor {
     @autoreleasepool {
-        %init(_SBGainMapView);
-        %init(SBSystemApertureContainerView);
+        %init(DXSA_GainMap);
+        %init(DXSA_ApertureContainer);
     }
 }
