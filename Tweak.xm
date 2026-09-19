@@ -4,8 +4,9 @@
 #import <objc/NSObjCRuntime.h>
 #import <dispatch/dispatch.h>
 #include <stdarg.h>
+#include <stdio.h>
 
-// DynamicXStandardAdjust 1.0.36 — runtime diagnostic build.
+// DynamicXStandardAdjust 1.0.37 — runtime diagnostic build.
 // This version intentionally DOES NOT change size, alpha, color, transform, or frame.
 // It only proves whether the DynamicX classes/methods are present and being called.
 
@@ -25,7 +26,10 @@ static int gInstallAttempts = 0;
 static void DXSALog(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    NSLogv([NSString stringWithUTF8String:fmt], ap);
+    fprintf(stderr, "[DXSA37] ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    fflush(stderr);
     va_end(ap);
 }
 
@@ -129,7 +133,7 @@ static void DXSAInstall(void) {
 
 %ctor {
     @autoreleasepool {
-        DXSALog("[DXSA36] ===== DynamicXStandardAdjust 1.0.36 DIAGNOSTIC START =====");
+        DXSALog("[DXSA36] ===== DynamicXStandardAdjust 1.0.37 DIAGNOSTIC START =====");
         DXSAReportPrefs();
         DXSAReportClass();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
