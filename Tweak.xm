@@ -77,11 +77,16 @@ static void DXSASetColor(id view, SEL setter, id color) {
 %group DXSA_ApertureContainer
 %hook SBSystemApertureContainerView
 - (void)setBackgroundColor:(id)color {
+    id newColor = color;
+
     if (DXSAWhiteEnabled()) {
         id white = DXSAColor(sel_registerName("whiteColor"));
-        if (white) { %orig(white); return; }
+        if (white) {
+            newColor = white;
+        }
     }
-    %orig(color);
+
+    %orig(newColor);
 }
 %end
 %end
