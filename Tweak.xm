@@ -19,7 +19,7 @@ static id DXSAUserDefaults(void) {
     if (!UD) return nil;
     id obj = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("standardUserDefaults"));
     if (!obj) return nil;
-    id suite = ((id (*)(id, SEL, id))objc_msgSend)((id)UD, sel_registerName("alloc"));
+    id suite = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("alloc"));
     if (!suite) return obj;
     suite = ((id (*)(id, SEL, id))objc_msgSend)(suite, sel_registerName("initWithSuiteName:"), @"com.dynamicx.standardadjust");
     return suite ?: obj;
