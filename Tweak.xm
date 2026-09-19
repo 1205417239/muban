@@ -2,16 +2,24 @@
 #import <objc/message.h>
 #import <objc/objc.h>
 #import <objc/NSObjCRuntime.h>
+#import <dispatch/dispatch.h>
 
 typedef double CGFloat;
+typedef struct { CGFloat top; CGFloat left; CGFloat bottom; CGFloat right; } DXSAInsets;
+typedef struct { CGFloat a,b,c,d,tx,ty; } DXSATransform;
+
+typedef void (*DXSAUpdateIMP)(id, SEL);
+typedef DXSAInsets (*DXSAOutsetsIMP)(id, SEL, NSInteger, DXSAInsets, DXSAInsets);
+static DXSAUpdateIMP gOriginalUpdate = NULL;
+static DXSAOutsetsIMP gOriginalOutsets = NULL;
+static BOOL gHooked = NO;
 
 static id DXSAUserDefaults(void) {
     Class UD = objc_getClass("NSUserDefaults");
     if (!UD) return nil;
     id obj = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("standardUserDefaults"));
     if (!obj) return nil;
-    Class objectClass = objc_getClass("NSUserDefaults");
-    id suite = ((id (*)(id, SEL))objc_msgSend)((id)objectClass, sel_registerName("alloc"));
+    id suite = ((id (*)(id, SEL, id))objc_msgSend)((id)UD, sel_registerName("alloc"));
     if (!suite) return obj;
     suite = ((id (*)(id, SEL, id))objc_msgSend)(suite, sel_registerName("initWithSuiteName:"), @"com.dynamicx.standardadjust");
     return suite ?: obj;
@@ -23,12 +31,6 @@ static NSInteger DXSAInteger(id prefs, id key, NSInteger fallback) {
     return v ? v : fallback;
 }
 
-static BOOL DXSAWhiteEnabled(void) {
-    id prefs = DXSAUserDefaults();
-    if (!prefs) return NO;
-    return ((BOOL (*)(id, SEL, id))objc_msgSend)(prefs, sel_registerName("boolForKey:"), @"WhiteStyleEnabled");
-}
-
 static CGFloat DXSAScale(void) {
     id prefs = DXSAUserDefaults();
     NSInteger p = DXSAInteger(prefs, @"OverallScalePercent", 100);
@@ -37,9 +39,18 @@ static CGFloat DXSAScale(void) {
     return ((CGFloat)p) / 100.0;
 }
 
-static BOOL DXSAIsKindOfClass(id obj, Class cls) {
-    if (!obj || !cls) return NO;
-    return ((BOOL (*)(id, SEL, Class))objc_msgSend)(obj, sel_registerName("isKindOfClass:"), cls);
+static CGFloat DXSAOpacity(void) {
+    id prefs = DXSAUserDefaults();
+    NSInteger p = DXSAInteger(prefs, @"OpacityPercent", 100);
+    if (p < 10) p = 10;
+    if (p > 100) p = 100;
+    return ((CGFloat)p) / 100.0;
+}
+
+static BOOL DXSAWhiteEnabled(void) {
+    id prefs = DXSAUserDefaults();
+    if (!prefs) return NO;
+    return ((BOOL (*)(id, SEL, id))objc_msgSend)(prefs, sel_registerName("boolForKey:"), @"WhiteStyleEnabled");
 }
 
 static id DXSAColor(SEL selector) {
@@ -48,8 +59,69 @@ static id DXSAColor(SEL selector) {
     return ((id (*)(id, SEL))objc_msgSend)((id)C, selector);
 }
 
-static void DXSASetColor(id view, SEL setter, id color) {
-    if (view && color) ((void (*)(id, SEL, id))objc_msgSend)(view, setter, color);
+static void DXSAApplyToView(id view) {
+    if (!view) return;
+    SEL setTransform = sel_registerName("setTransform:");
+    SEL setAlpha = sel_registerName("setAlpha:");
+    CGFloat s = DXSAScale();
+    DXSATransform t = {s, 0, 0, s, 0, 0};
+    ((void (*)(id, SEL, DXSATransform))objc_msgSend)(view, setTransform, t);
+    ((void (*)(id, SEL, CGFloat))objc_msgSend)(view, setAlpha, DXSAOpacity());
+
+    if (DXSAWhiteEnabled()) {
+        id white = DXSAColor(sel_registerName("whiteColor"));
+        if (white) ((void (*)(id, SEL, id))objc_msgSend)(view, sel_registerName("setBackgroundColor:"), white);
+    }
+}
+
+static void DXSAUpdateHook(id self, SEL _cmd) {
+    if (gOriginalUpdate) gOriginalUpdate(self, _cmd);
+
+    id view = nil;
+    SEL leading = sel_registerName("leadingView");
+    if (((BOOL (*)(id, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), leading))
+        view = ((id (*)(id, SEL))objc_msgSend)(self, leading);
+
+    if (!view) {
+        SEL provider = sel_registerName("viewProvider");
+        if (((BOOL (*)(id, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), provider))
+            view = ((id (*)(id, SEL))objc_msgSend)(self, provider);
+    }
+
+    DXSAApplyToView(view);
+}
+
+static DXSAInsets DXSAOutsetsHook(id self, SEL _cmd, NSInteger mode, DXSAInsets suggested, DXSAInsets maximum) {
+    DXSAInsets r = suggested;
+    if (gOriginalOutsets) r = gOriginalOutsets(self, _cmd, mode, suggested, maximum);
+    CGFloat s = DXSAScale();
+    if (s != 1.0) {
+        r.top *= s;
+        r.left *= s;
+        r.bottom *= s;
+        r.right *= s;
+    }
+    return r;
+}
+
+static void DXSAInstall(void) {
+    if (gHooked) return;
+    Class C = objc_getClass("DynamicXNotificationElement");
+    if (!C) return;
+
+    Method update = class_getInstanceMethod(C, sel_registerName("updateLayout"));
+    if (update) {
+        gOriginalUpdate = (DXSAUpdateIMP)method_getImplementation(update);
+        method_setImplementation(update, (IMP)DXSAUpdateHook);
+    }
+
+    Method outsets = class_getInstanceMethod(C, sel_registerName("preferredEdgeOutsetsForLayoutMode:suggestedOutsets:maximumOutsets:"));
+    if (outsets) {
+        gOriginalOutsets = (DXSAOutsetsIMP)method_getImplementation(outsets);
+        method_setImplementation(outsets, (IMP)DXSAOutsetsHook);
+    }
+
+    gHooked = (gOriginalUpdate || gOriginalOutsets);
 }
 
 %group DXSA_GainMap
@@ -59,17 +131,10 @@ static void DXSASetColor(id view, SEL setter, id color) {
     if (!DXSAWhiteEnabled()) return;
     id superview = ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("superview"));
     Class gain = objc_getClass("_SBSystemApertureGainMapView");
-    if (!DXSAIsKindOfClass(superview, gain)) return;
+    if (!superview || !gain) return;
+    if (!((BOOL (*)(id, SEL, Class))objc_msgSend)(superview, sel_registerName("isKindOfClass:"), gain)) return;
     id white = DXSAColor(sel_registerName("whiteColor"));
-    DXSASetColor(self, sel_registerName("setBackgroundColor:"), white);
-    id subviews = ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("subviews"));
-    NSUInteger count = ((NSUInteger (*)(id, SEL))objc_msgSend)(subviews, sel_registerName("count"));
-    Class label = objc_getClass("UILabel");
-    id black = DXSAColor(sel_registerName("blackColor"));
-    for (NSUInteger i = 0; i < count; i++) {
-        id v = ((id (*)(id, SEL, NSUInteger))objc_msgSend)(subviews, sel_registerName("objectAtIndex:"), i);
-        if (DXSAIsKindOfClass(v, label)) DXSASetColor(v, sel_registerName("setTextColor:"), black);
-    }
+    if (white) ((void (*)(id, SEL, id))objc_msgSend)(self, sel_registerName("setBackgroundColor:"), white);
 }
 %end
 %end
@@ -78,29 +143,11 @@ static void DXSASetColor(id view, SEL setter, id color) {
 %hook SBSystemApertureContainerView
 - (void)setBackgroundColor:(id)color {
     id newColor = color;
-
     if (DXSAWhiteEnabled()) {
         id white = DXSAColor(sel_registerName("whiteColor"));
-        if (white) {
-            newColor = white;
-        }
+        if (white) newColor = white;
     }
-
     %orig(newColor);
-}
-%end
-%end
-
-%group DXSA_NotificationElement
-%hook DynamicXNotificationElement
-- (void)setExpwidth:(CGFloat)value {
-    %orig(value * DXSAScale());
-}
-- (void)setMiniwidth:(CGFloat)value {
-    %orig(value * DXSAScale());
-}
-- (void)setMiniheight:(CGFloat)value {
-    %orig(value * DXSAScale());
 }
 %end
 %end
@@ -109,6 +156,15 @@ static void DXSASetColor(id view, SEL setter, id color) {
     @autoreleasepool {
         if (objc_getClass("_SBGainMapView")) %init(DXSA_GainMap);
         if (objc_getClass("SBSystemApertureContainerView")) %init(DXSA_ApertureContainer);
-        if (objc_getClass("DynamicXNotificationElement")) %init(DXSA_NotificationElement);
+
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            DXSAInstall();
+        });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            DXSAInstall();
+        });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            DXSAInstall();
+        });
     }
 }
