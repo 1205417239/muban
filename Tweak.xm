@@ -79,12 +79,12 @@ static void DXSAUpdateHook(id self, SEL _cmd) {
 
     id view = nil;
     SEL leading = sel_registerName("leadingView");
-    if (((BOOL (*)(id, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), leading))
+    if (((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), leading))
         view = ((id (*)(id, SEL))objc_msgSend)(self, leading);
 
     if (!view) {
         SEL provider = sel_registerName("viewProvider");
-        if (((BOOL (*)(id, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), provider))
+        if (((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), provider))
             view = ((id (*)(id, SEL))objc_msgSend)(self, provider);
     }
 
