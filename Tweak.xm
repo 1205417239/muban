@@ -3,26 +3,40 @@
 #import <objc/objc.h>
 #import <objc/NSObjCRuntime.h>
 #import <dispatch/dispatch.h>
+#include <stdarg.h>
+
+// DynamicXStandardAdjust 1.0.36 — runtime diagnostic build.
+// This version intentionally DOES NOT change size, alpha, color, transform, or frame.
+// It only proves whether the DynamicX classes/methods are present and being called.
 
 typedef double CGFloat;
 typedef struct { CGFloat top; CGFloat left; CGFloat bottom; CGFloat right; } DXSAInsets;
-typedef struct { CGFloat a,b,c,d,tx,ty; } DXSATransform;
-
-typedef void (*DXSAUpdateIMP)(id, SEL);
 typedef DXSAInsets (*DXSAOutsetsIMP)(id, SEL, NSInteger, DXSAInsets, DXSAInsets);
+typedef void (*DXSAUpdateIMP)(id, SEL);
+
 static DXSAUpdateIMP gOriginalUpdate = NULL;
 static DXSAOutsetsIMP gOriginalOutsets = NULL;
-static BOOL gHooked = NO;
+static BOOL gHookedUpdate = NO;
+static BOOL gHookedOutsets = NO;
+static int gUpdateHits = 0;
+static int gOutsetsHits = 0;
+static int gInstallAttempts = 0;
+
+static void DXSALog(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    NSLogv([NSString stringWithUTF8String:fmt], ap);
+    va_end(ap);
+}
 
 static id DXSAUserDefaults(void) {
     Class UD = objc_getClass("NSUserDefaults");
-    if (!UD) return nil;
-    id obj = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("standardUserDefaults"));
-    if (!obj) return nil;
+    if (!UD) { DXSALog("[DXSA36] NSUserDefaults class missing"); return nil; }
+    id standard = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("standardUserDefaults"));
     id suite = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("alloc"));
-    if (!suite) return obj;
+    if (!suite) return standard;
     suite = ((id (*)(id, SEL, id))objc_msgSend)(suite, sel_registerName("initWithSuiteName:"), @"com.dynamicx.standardadjust");
-    return suite ?: obj;
+    return suite ?: standard;
 }
 
 static NSInteger DXSAInteger(id prefs, id key, NSInteger fallback) {
@@ -31,140 +45,98 @@ static NSInteger DXSAInteger(id prefs, id key, NSInteger fallback) {
     return v ? v : fallback;
 }
 
-static CGFloat DXSAScale(void) {
-    id prefs = DXSAUserDefaults();
-    NSInteger p = DXSAInteger(prefs, @"OverallScalePercent", 100);
-    if (p < 60) p = 60;
-    if (p > 160) p = 160;
-    return ((CGFloat)p) / 100.0;
+static void DXSAReportPrefs(void) {
+    id p = DXSAUserDefaults();
+    NSInteger scale = DXSAInteger(p, @"OverallScalePercent", 100);
+    NSInteger opacity = DXSAInteger(p, @"OpacityPercent", 100);
+    BOOL white = p ? ((BOOL (*)(id, SEL, id))objc_msgSend)(p, sel_registerName("boolForKey:"), @"WhiteStyleEnabled") : NO;
+    DXSALog("[DXSA36] PREFS scale=%ld opacity=%ld white=%d", (long)scale, (long)opacity, white);
 }
 
-static CGFloat DXSAOpacity(void) {
-    id prefs = DXSAUserDefaults();
-    NSInteger p = DXSAInteger(prefs, @"OpacityPercent", 100);
-    if (p < 10) p = 10;
-    if (p > 100) p = 100;
-    return ((CGFloat)p) / 100.0;
-}
-
-static BOOL DXSAWhiteEnabled(void) {
-    id prefs = DXSAUserDefaults();
-    if (!prefs) return NO;
-    return ((BOOL (*)(id, SEL, id))objc_msgSend)(prefs, sel_registerName("boolForKey:"), @"WhiteStyleEnabled");
-}
-
-static id DXSAColor(SEL selector) {
-    Class C = objc_getClass("UIColor");
-    if (!C) return nil;
-    return ((id (*)(id, SEL))objc_msgSend)((id)C, selector);
-}
-
-static void DXSAApplyToView(id view) {
-    if (!view) return;
-    SEL setTransform = sel_registerName("setTransform:");
-    SEL setAlpha = sel_registerName("setAlpha:");
-    CGFloat s = DXSAScale();
-    DXSATransform t = {s, 0, 0, s, 0, 0};
-    ((void (*)(id, SEL, DXSATransform))objc_msgSend)(view, setTransform, t);
-    ((void (*)(id, SEL, CGFloat))objc_msgSend)(view, setAlpha, DXSAOpacity());
-
-    if (DXSAWhiteEnabled()) {
-        id white = DXSAColor(sel_registerName("whiteColor"));
-        if (white) ((void (*)(id, SEL, id))objc_msgSend)(view, sel_registerName("setBackgroundColor:"), white);
+static void DXSAReportClass(void) {
+    Class c = objc_getClass("DynamicXNotificationElement");
+    if (!c) {
+        DXSALog("[DXSA36] CLASS DynamicXNotificationElement = MISSING");
+        return;
     }
+    DXSALog("[DXSA36] CLASS DynamicXNotificationElement = %p", c);
+    SEL update = sel_registerName("updateLayout");
+    SEL outsets = sel_registerName("preferredEdgeOutsetsForLayoutMode:suggestedOutsets:maximumOutsets:");
+    SEL leading = sel_registerName("leadingView");
+    SEL provider = sel_registerName("viewProvider");
+    DXSALog("[DXSA36] METHODS update=%d outsets=%d leading=%d provider=%d",
+            class_getInstanceMethod(c, update) != NULL,
+            class_getInstanceMethod(c, outsets) != NULL,
+            class_getInstanceMethod(c, leading) != NULL,
+            class_getInstanceMethod(c, provider) != NULL);
 }
 
 static void DXSAUpdateHook(id self, SEL _cmd) {
-    if (gOriginalUpdate) gOriginalUpdate(self, _cmd);
-
-    id view = nil;
-    SEL leading = sel_registerName("leadingView");
-    if (((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), leading))
-        view = ((id (*)(id, SEL))objc_msgSend)(self, leading);
-
-    if (!view) {
-        SEL provider = sel_registerName("viewProvider");
-        if (((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), provider))
-            view = ((id (*)(id, SEL))objc_msgSend)(self, provider);
+    gUpdateHits++;
+    if (gUpdateHits <= 5 || (gUpdateHits % 50) == 0) {
+        BOOL leading = ((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), sel_registerName("leadingView"));
+        BOOL provider = ((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), sel_registerName("viewProvider"));
+        id v1 = leading ? ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("leadingView")) : nil;
+        id v2 = (!v1 && provider) ? ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("viewProvider")) : nil;
+        id view = v1 ?: v2;
+        DXSALog("[DXSA36] updateLayout HIT #%d self=%p leading=%d provider=%d view=%p viewClass=%s",
+                gUpdateHits, self, leading, provider, view, view ? class_getName(object_getClass(view)) : "nil");
+        DXSAReportPrefs();
     }
-
-    DXSAApplyToView(view);
+    if (gOriginalUpdate) gOriginalUpdate(self, _cmd);
 }
 
 static DXSAInsets DXSAOutsetsHook(id self, SEL _cmd, NSInteger mode, DXSAInsets suggested, DXSAInsets maximum) {
-    DXSAInsets r = suggested;
-    if (gOriginalOutsets) r = gOriginalOutsets(self, _cmd, mode, suggested, maximum);
-    CGFloat s = DXSAScale();
-    if (s != 1.0) {
-        r.top *= s;
-        r.left *= s;
-        r.bottom *= s;
-        r.right *= s;
+    gOutsetsHits++;
+    if (gOutsetsHits <= 5 || (gOutsetsHits % 50) == 0) {
+        DXSALog("[DXSA36] OUTSETS HIT #%d self=%p mode=%ld suggested=(%.2f %.2f %.2f %.2f) maximum=(%.2f %.2f %.2f %.2f)",
+                gOutsetsHits, self, (long)mode,
+                suggested.top, suggested.left, suggested.bottom, suggested.right,
+                maximum.top, maximum.left, maximum.bottom, maximum.right);
     }
-    return r;
+    if (gOriginalOutsets) return gOriginalOutsets(self, _cmd, mode, suggested, maximum);
+    return suggested;
 }
 
 static void DXSAInstall(void) {
-    if (gHooked) return;
+    gInstallAttempts++;
     Class C = objc_getClass("DynamicXNotificationElement");
-    if (!C) return;
-
-    Method update = class_getInstanceMethod(C, sel_registerName("updateLayout"));
-    if (update) {
-        gOriginalUpdate = (DXSAUpdateIMP)method_getImplementation(update);
-        method_setImplementation(update, (IMP)DXSAUpdateHook);
+    if (!C) {
+        if (gInstallAttempts <= 8) DXSALog("[DXSA36] INSTALL attempt #%d: class missing", gInstallAttempts);
+        return;
     }
+    DXSAReportClass();
 
-    Method outsets = class_getInstanceMethod(C, sel_registerName("preferredEdgeOutsetsForLayoutMode:suggestedOutsets:maximumOutsets:"));
-    if (outsets) {
-        gOriginalOutsets = (DXSAOutsetsIMP)method_getImplementation(outsets);
-        method_setImplementation(outsets, (IMP)DXSAOutsetsHook);
+    if (!gHookedUpdate) {
+        Method m = class_getInstanceMethod(C, sel_registerName("updateLayout"));
+        if (m) {
+            gOriginalUpdate = (DXSAUpdateIMP)method_getImplementation(m);
+            method_setImplementation(m, (IMP)DXSAUpdateHook);
+            gHookedUpdate = YES;
+            DXSALog("[DXSA36] HOOKED updateLayout original=%p", gOriginalUpdate);
+        }
     }
-
-    gHooked = (gOriginalUpdate || gOriginalOutsets);
-}
-
-%group DXSA_GainMap
-%hook _SBGainMapView
-- (void)layoutSubviews {
-    %orig;
-    if (!DXSAWhiteEnabled()) return;
-    id superview = ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("superview"));
-    Class gain = objc_getClass("_SBSystemApertureGainMapView");
-    if (!superview || !gain) return;
-    if (!((BOOL (*)(id, SEL, Class))objc_msgSend)(superview, sel_registerName("isKindOfClass:"), gain)) return;
-    id white = DXSAColor(sel_registerName("whiteColor"));
-    if (white) ((void (*)(id, SEL, id))objc_msgSend)(self, sel_registerName("setBackgroundColor:"), white);
-}
-%end
-%end
-
-%group DXSA_ApertureContainer
-%hook SBSystemApertureContainerView
-- (void)setBackgroundColor:(id)color {
-    id newColor = color;
-    if (DXSAWhiteEnabled()) {
-        id white = DXSAColor(sel_registerName("whiteColor"));
-        if (white) newColor = white;
+    if (!gHookedOutsets) {
+        Method m = class_getInstanceMethod(C, sel_registerName("preferredEdgeOutsetsForLayoutMode:suggestedOutsets:maximumOutsets:"));
+        if (m) {
+            gOriginalOutsets = (DXSAOutsetsIMP)method_getImplementation(m);
+            method_setImplementation(m, (IMP)DXSAOutsetsHook);
+            gHookedOutsets = YES;
+            DXSALog("[DXSA36] HOOKED preferredEdgeOutsets original=%p", gOriginalOutsets);
+        }
     }
-    %orig(newColor);
 }
-%end
-%end
 
 %ctor {
     @autoreleasepool {
-        if (objc_getClass("_SBGainMapView")) %init(DXSA_GainMap);
-        if (objc_getClass("SBSystemApertureContainerView")) %init(DXSA_ApertureContainer);
-
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            DXSAInstall();
-        });
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            DXSAInstall();
-        });
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            DXSAInstall();
+        DXSALog("[DXSA36] ===== DynamicXStandardAdjust 1.0.36 DIAGNOSTIC START =====");
+        DXSAReportPrefs();
+        DXSAReportClass();
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            DXSALog("[DXSA36] FINAL STATUS hookedUpdate=%d hookedOutsets=%d updateHits=%d outsetsHits=%d", gHookedUpdate, gHookedOutsets, gUpdateHits, gOutsetsHits);
         });
     }
 }
