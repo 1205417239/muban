@@ -60,7 +60,6 @@ static void DXSASetColor(id view, SEL setter, id color) {
             DXSASetColor(v, sel_registerName("setTextColor:"), black);
     }
 }
-
 %end
 %end
 
@@ -77,7 +76,6 @@ static void DXSASetColor(id view, SEL setter, id color) {
     }
     %orig(color);
 }
-
 %end
 %end
 

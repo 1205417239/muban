@@ -1,3 +1,3 @@
-1.0.28 restores the previous PreferenceLoader settings entry and its three controls.
-Makefile is unchanged from 1.0.27.
-Runtime test remains focused on the white-style hook.
+1.0.29 restores the EXACT PreferenceLoader plist structure from the previously working 1.0.17 source.
+No guessed PreferenceSpecifiers schema is used.
+Makefile is unchanged from 1.0.27/1.0.28.

@@ -1,42 +1,10 @@
-{
-    PreferenceSpecifiers = (
-        {
-            Type = PSGroupCell;
-            Label = "DynamicX Standard Adjust";
-        },
-        {
-            Type = PSSliderCell;
-            Title = "标准通知整体大小";
-            Key = OverallScalePercent;
-            DefaultValue = 100;
-            MinimumValue = 60;
-            MaximumValue = 160;
-            MinimumValueImage = "";
-            MaximumValueImage = "";
-        },
-        {
-            Type = PSSwitchCell;
-            Title = "白色通知";
-            Key = WhiteStyleEnabled;
-            DefaultValue = NO;
-        },
-        {
-            Type = PSGroupCell;
-            Label = "透明度";
-        },
-        {
-            Type = PSSliderCell;
-            Title = "标准通知透明度";
-            Key = OpacityPercent;
-            DefaultValue = 100;
-            MinimumValue = 10;
-            MaximumValue = 100;
-        }
-    );
-    Defaults = {
-        OverallScalePercent = 100;
-        WhiteStyleEnabled = NO;
-        OpacityPercent = 100;
-    };
-    PostNotification = "com.dynamicx.standardadjust/preferences.changed";
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>entry</key><dict><key>cell</key><string>PSLinkCell</string><key>label</key><string>DynamicX 标准通知增强</string></dict>
+<key>title</key><string>DynamicX 标准通知增强</string>
+<key>items</key><array>
+<dict><key>cell</key><string>PSMultiValueCell</string><key>defaults</key><string>com.dynamicx.standardadjust</string><key>key</key><string>OverallScalePercent</string><key>label</key><string>整体大小</string><key>default</key><integer>100</integer><key>values</key><array><integer>60</integer><integer>70</integer><integer>80</integer><integer>90</integer><integer>100</integer><integer>110</integer><integer>120</integer><integer>130</integer><integer>140</integer><integer>150</integer><integer>160</integer></array><key>titles</key><array><string>60%</string><string>70%</string><string>80%</string><string>90%</string><string>100%</string><string>110%</string><string>120%</string><string>130%</string><string>140%</string><string>150%</string><string>160%</string></array><key>PostNotification</key><string>com.dynamicx.standardadjust/preferences.changed</string></dict>
+<dict><key>cell</key><string>PSSwitchCell</string><key>defaults</key><string>com.dynamicx.standardadjust</string><key>key</key><string>WhiteStyleEnabled</string><key>label</key><string>白色通知</string><key>default</key><false/><key>PostNotification</key><string>com.dynamicx.standardadjust/preferences.changed</string></dict>
+<dict><key>cell</key><string>PSMultiValueCell</string><key>defaults</key><string>com.dynamicx.standardadjust</string><key>key</key><string>OpacityPercent</string><key>label</key><string>透明度</string><key>default</key><integer>100</integer><key>values</key><array><integer>10</integer><integer>15</integer><integer>20</integer><integer>25</integer><integer>30</integer><integer>35</integer><integer>40</integer><integer>45</integer><integer>50</integer><integer>55</integer><integer>60</integer><integer>65</integer><integer>70</integer><integer>75</integer><integer>80</integer><integer>85</integer><integer>90</integer><integer>95</integer><integer>100</integer></array><key>titles</key><array><string>10%</string><string>15%</string><string>20%</string><string>25%</string><string>30%</string><string>35%</string><string>40%</string><string>45%</string><string>50%</string><string>55%</string><string>60%</string><string>65%</string><string>70%</string><string>75%</string><string>80%</string><string>85%</string><string>90%</string><string>95%</string><string>100%</string></array><key>PostNotification</key><string>com.dynamicx.standardadjust/preferences.changed</string></dict>
+</array></dict></plist>

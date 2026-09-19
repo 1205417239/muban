@@ -1,6 +1,6 @@
 Package: com.dynamicx.standardadjust
 Name: DynamicX Standard Adjust
-Version: 1.0.28
+Version: 1.0.29
 Architecture: iphoneos-arm64
 Description: DynamicX standard notification adjustment test tweak
 Maintainer: DynamicXStandardAdjust
