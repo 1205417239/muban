@@ -2,6 +2,7 @@
 #import <objc/message.h>
 #import <objc/objc.h>
 #import <objc/NSObjCRuntime.h>
+#import <UIKit/UIKit.h>
 
 static id DXSAUserDefaults(void) {
     Class UD = objc_getClass("NSUserDefaults");
