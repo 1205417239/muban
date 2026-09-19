@@ -17,7 +17,6 @@ static id DXString(const char *s) {
 }
 static BOOL DXWhiteEnabled(void) {
     Class ud = objc_getClass("NSUserDefaults");
-    id d = ((id (*)(id, SEL))objc_msgSend)((id)ud, sel_registerName("standardUserDefaults"));
     id suite = DXString("com.dynamicx.standardadjust");
     id settings = ((id (*)(id, SEL, id))objc_msgSend)
         ((id)ud, sel_registerName("alloc"), suite);
