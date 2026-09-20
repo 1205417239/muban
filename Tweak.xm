@@ -1,174 +1,132 @@
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
-#import <objc/objc.h>
-#import <objc/NSObjCRuntime.h>
-#import <dispatch/dispatch.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <time.h>
 
-// DynamicXStandardAdjust 1.0.38 — runtime diagnostic build.
-// Diagnostic only: no size, alpha, color, transform, or frame changes.
-// Logs are written to /var/mobile/DynamicXStandardAdjust.log.
+static NSString *DXSA38LogPath(void) {
+    return @"/var/mobile/DynamicXStandardAdjust.log";
+}
 
-typedef double CGFloat;
-typedef struct { CGFloat top; CGFloat left; CGFloat bottom; CGFloat right; } DXSAInsets;
-typedef DXSAInsets (*DXSAOutsetsIMP)(id, SEL, NSInteger, DXSAInsets, DXSAInsets);
-typedef void (*DXSAUpdateIMP)(id, SEL);
-
-static DXSAUpdateIMP gOriginalUpdate = NULL;
-static DXSAOutsetsIMP gOriginalOutsets = NULL;
-static BOOL gHookedUpdate = NO;
-static BOOL gHookedOutsets = NO;
-static int gUpdateHits = 0;
-static int gOutsetsHits = 0;
-static int gInstallAttempts = 0;
-static FILE *gLog = NULL;
-
-static void DXSALog(const char *fmt, ...) {
+static void DXSA38Log(NSString *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-
-    time_t now = time(NULL);
-    struct tm tmv;
-    localtime_r(&now, &tmv);
-    char stamp[32];
-    strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tmv);
-
-    if (!gLog) {
-        gLog = fopen("/var/mobile/DynamicXStandardAdjust.log", "a");
-    }
-
-    if (gLog) {
-        fprintf(gLog, "[%s] [DXSA38] ", stamp);
-        vfprintf(gLog, fmt, ap);
-        fprintf(gLog, "\n");
-        fflush(gLog);
-    }
-
+    NSString *s = [[NSString alloc] initWithFormat:fmt arguments:ap];
     va_end(ap);
+
+    NSString *line = [NSString stringWithFormat:@"[DXSA38SCAN] %@\n", s];
+    NSString *path = DXSA38LogPath();
+
+    @try {
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:path];
+        if (!fh) {
+            [[NSFileManager defaultManager] createFileAtPath:path contents:nil attributes:nil];
+            fh = [NSFileHandle fileHandleForWritingAtPath:path];
+        }
+        [fh seekToEndOfFile];
+        [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+        [fh closeFile];
+    } @catch (__unused id e) {}
 }
 
-static void DXSAInitLog(void) {
-    if (!gLog) gLog = fopen("/var/mobile/DynamicXStandardAdjust.log", "a");
-    DXSALog("===== DynamicXStandardAdjust 1.0.38 DIAGNOSTIC START =====");
-    DXSALog("LOG_PATH=/var/mobile/DynamicXStandardAdjust.log");
-}
+static BOOL DXSA38Match(NSString *name) {
+    NSString *s = [name lowercaseString];
+    NSArray *keys = @[
+        @"dynamicx",
+        @"dynamic",
+        @"notification",
+        @"aperture",
+        @"element",
+        @"island"
+    ];
 
-static id DXSAUserDefaults(void) {
-    Class UD = objc_getClass("NSUserDefaults");
-    if (!UD) { DXSALog("NSUserDefaults class missing"); return nil; }
-    id standard = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("standardUserDefaults"));
-    id suite = ((id (*)(id, SEL))objc_msgSend)((id)UD, sel_registerName("alloc"));
-    if (!suite) return standard;
-    suite = ((id (*)(id, SEL, id))objc_msgSend)(suite, sel_registerName("initWithSuiteName:"), @"com.dynamicx.standardadjust");
-    return suite ?: standard;
-}
-
-static NSInteger DXSAInteger(id prefs, id key, NSInteger fallback) {
-    if (!prefs) return fallback;
-    NSInteger v = ((NSInteger (*)(id, SEL, id))objc_msgSend)(prefs, sel_registerName("integerForKey:"), key);
-    return v ? v : fallback;
-}
-
-static void DXSAReportPrefs(void) {
-    id p = DXSAUserDefaults();
-    NSInteger scale = DXSAInteger(p, @"OverallScalePercent", 100);
-    NSInteger opacity = DXSAInteger(p, @"OpacityPercent", 100);
-    BOOL white = p ? ((BOOL (*)(id, SEL, id))objc_msgSend)(p, sel_registerName("boolForKey:"), @"WhiteStyleEnabled") : NO;
-    DXSALog("PREFS scale=%ld opacity=%ld white=%d", (long)scale, (long)opacity, white);
-}
-
-static void DXSAReportClass(void) {
-    Class c = objc_getClass("DynamicXNotificationElement");
-    if (!c) {
-        DXSALog("CLASS DynamicXNotificationElement=MISSING");
-        return;
+    for (NSString *k in keys) {
+        if ([s containsString:k]) return YES;
     }
-    DXSALog("CLASS DynamicXNotificationElement=%p", c);
-    SEL update = sel_registerName("updateLayout");
-    SEL outsets = sel_registerName("preferredEdgeOutsetsForLayoutMode:suggestedOutsets:maximumOutsets:");
-    SEL leading = sel_registerName("leadingView");
-    SEL provider = sel_registerName("viewProvider");
-    DXSALog("METHODS update=%d outsets=%d leading=%d provider=%d",
-            class_getInstanceMethod(c, update) != NULL,
-            class_getInstanceMethod(c, outsets) != NULL,
-            class_getInstanceMethod(c, leading) != NULL,
-            class_getInstanceMethod(c, provider) != NULL);
+    return NO;
 }
 
-static void DXSAUpdateHook(id self, SEL _cmd) {
-    gUpdateHits++;
-    if (gUpdateHits <= 5 || (gUpdateHits % 50) == 0) {
-        BOOL leading = ((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), sel_registerName("leadingView"));
-        BOOL provider = ((BOOL (*)(id, SEL, SEL))objc_msgSend)(self, sel_registerName("respondsToSelector:"), sel_registerName("viewProvider"));
-        id v1 = leading ? ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("leadingView")) : nil;
-        id v2 = (!v1 && provider) ? ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("viewProvider")) : nil;
-        id view = v1 ?: v2;
-        DXSALog("updateLayout HIT #%d self=%p leading=%d provider=%d view=%p viewClass=%s",
-                gUpdateHits, self, leading, provider, view, view ? class_getName(object_getClass(view)) : "nil");
-        DXSAReportPrefs();
+static BOOL DXSA38InterestingMethod(NSString *name) {
+    NSString *s = [name lowercaseString];
+    NSArray *keys = @[
+        @"layout",
+        @"frame",
+        @"bounds",
+        @"alpha",
+        @"opacity",
+        @"background",
+        @"update",
+        @"notification",
+        @"view",
+        @"outset"
+    ];
+
+    for (NSString *k in keys) {
+        if ([s containsString:k]) return YES;
     }
-    if (gOriginalUpdate) gOriginalUpdate(self, _cmd);
+    return NO;
 }
 
-static DXSAInsets DXSAOutsetsHook(id self, SEL _cmd, NSInteger mode, DXSAInsets suggested, DXSAInsets maximum) {
-    gOutsetsHits++;
-    if (gOutsetsHits <= 5 || (gOutsetsHits % 50) == 0) {
-        DXSALog("OUTSETS HIT #%d self=%p mode=%ld suggested=(%.2f %.2f %.2f %.2f) maximum=(%.2f %.2f %.2f %.2f)",
-                gOutsetsHits, self, (long)mode,
-                suggested.top, suggested.left, suggested.bottom, suggested.right,
-                maximum.top, maximum.left, maximum.bottom, maximum.right);
-    }
-    if (gOriginalOutsets) return gOriginalOutsets(self, _cmd, mode, suggested, maximum);
-    return suggested;
-}
+static void DXSA38ScanRuntime(void) {
+    unsigned int count = 0;
+    Class *classes = objc_copyClassList(&count);
 
-static void DXSAInstall(void) {
-    gInstallAttempts++;
-    Class C = objc_getClass("DynamicXNotificationElement");
-    if (!C) {
-        if (gInstallAttempts <= 20) DXSALog("INSTALL attempt #%d: class missing", gInstallAttempts);
-        return;
-    }
-    DXSAReportClass();
+    DXSA38Log(@"========== RUNTIME SCAN START ==========");
+    DXSA38Log(@"classCount=%u", count);
 
-    if (!gHookedUpdate) {
-        Method m = class_getInstanceMethod(C, sel_registerName("updateLayout"));
-        if (m) {
-            gOriginalUpdate = (DXSAUpdateIMP)method_getImplementation(m);
-            method_setImplementation(m, (IMP)DXSAUpdateHook);
-            gHookedUpdate = YES;
-            DXSALog("HOOKED updateLayout original=%p", gOriginalUpdate);
-        } else {
-            DXSALog("updateLayout Method=MISSING");
+    unsigned int matched = 0;
+
+    for (unsigned int i = 0; i < count; i++) {
+        Class cls = classes[i];
+        if (!cls) continue;
+
+        const char *cn = class_getName(cls);
+        if (!cn) continue;
+
+        NSString *name = [NSString stringWithUTF8String:cn];
+        if (!DXSA38Match(name)) continue;
+
+        matched++;
+        DXSA38Log(@"CLASS[%u] %@", matched, name);
+
+        unsigned int mc = 0;
+        Method *methods = class_copyMethodList(cls, &mc);
+
+        NSMutableArray *interesting = [NSMutableArray array];
+
+        for (unsigned int j = 0; j < mc; j++) {
+            SEL sel = method_getName(methods[j]);
+            if (!sel) continue;
+
+            NSString *mn = NSStringFromSelector(sel);
+            if (DXSA38InterestingMethod(mn)) {
+                [interesting addObject:mn];
+            }
+        }
+
+        free(methods);
+
+        if (interesting.count) {
+            [interesting sortUsingSelector:@selector(compare:)];
+            DXSA38Log(@"  METHODS %@", [interesting componentsJoinedByString:@" | "]);
         }
     }
 
-    if (!gHookedOutsets) {
-        Method m = class_getInstanceMethod(C, sel_registerName("preferredEdgeOutsetsForLayoutMode:suggestedOutsets:maximumOutsets:"));
-        if (m) {
-            gOriginalOutsets = (DXSAOutsetsIMP)method_getImplementation(m);
-            method_setImplementation(m, (IMP)DXSAOutsetsHook);
-            gHookedOutsets = YES;
-            DXSALog("HOOKED preferredEdgeOutsets original=%p", gOriginalOutsets);
-        } else {
-            DXSALog("preferredEdgeOutsets Method=MISSING");
-        }
-    }
+    free(classes);
+
+    DXSA38Log(@"matchedClasses=%u", matched);
+    DXSA38Log(@"========== RUNTIME SCAN END ==========");
 }
 
 %ctor {
     @autoreleasepool {
-        DXSAInitLog();
-        DXSAReportPrefs();
-        DXSAReportClass();
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(6.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ DXSAInstall(); });
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            DXSALog("FINAL STATUS hookedUpdate=%d hookedOutsets=%d updateHits=%d outsetsHits=%d installAttempts=%d",
-                    gHookedUpdate, gHookedOutsets, gUpdateHits, gOutsetsHits, gInstallAttempts);
-        });
+        DXSA38Log(@"scanner loaded");
+
+        dispatch_after(
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(),
+            ^{
+                DXSA38ScanRuntime();
+            }
+        );
     }
 }
